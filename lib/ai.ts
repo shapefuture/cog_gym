@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "demo-key")
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "AIzaSyDemo_Key_Replace_In_Production")
 
 interface ChatMessage {
   role: "user" | "assistant"
@@ -17,27 +17,46 @@ interface CognitiveAnalysis {
   insights: string[]
 }
 
-export async function chatWithAI(message: string, conversationHistory: ChatMessage[] = []) {
+interface VoiceInteractionData {
+  audioUrl?: string
+  transcript?: string
+  emotion?: string
+  confidence?: number
+}
+
+export async function chatWithAI(
+  message: string,
+  conversationHistory: ChatMessage[] = [],
+  voiceData?: VoiceInteractionData,
+) {
   try {
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "demo-key") {
       // Demo mode with intelligent responses
       return {
-        response: generateMockAIResponse(message, conversationHistory),
+        response: generateMockAIResponse(message, conversationHistory, voiceData),
         error: null,
       }
     }
 
     const model = genAI.getGenerativeModel({ model: "gemini-pro" })
 
-    const context = `You are a cognitive bias expert and AI coach for Cognitive Gym. Your role is to:
+    // Enhanced context with voice data
+    let context = `You are a cognitive bias expert and AI coach for Cognitive Gym. Your role is to:
 1. Help users identify and overcome cognitive biases
 2. Provide personalized training recommendations
 3. Analyze decision-making patterns
 4. Offer practical strategies for better thinking
 
-Keep responses conversational, insightful, and actionable. Focus on cognitive psychology principles.
+Keep responses conversational, insightful, and actionable. Focus on cognitive psychology principles.`
 
-Conversation history:
+    if (voiceData) {
+      context += `\n\nVoice Analysis:
+- Detected emotion: ${voiceData.emotion || "neutral"}
+- Confidence level: ${voiceData.confidence || 0.8}
+- Audio quality: ${voiceData.audioUrl ? "good" : "text-only"}`
+    }
+
+    context += `\n\nConversation history:
 ${conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join("\n")}
 
 User: ${message}`
@@ -49,7 +68,7 @@ User: ${message}`
   } catch (error) {
     console.error("AI chat error:", error)
     return {
-      response: generateMockAIResponse(message, conversationHistory),
+      response: generateMockAIResponse(message, conversationHistory, voiceData),
       error: null, // Fallback to mock response instead of error
     }
   }
@@ -59,6 +78,7 @@ export async function analyzeCognitivePatterns(data: {
   userId: string
   sessionData: any
   userHistory: any[]
+  voicePatterns?: any
 }): Promise<CognitiveAnalysis> {
   try {
     if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "demo-key") {
@@ -71,6 +91,7 @@ export async function analyzeCognitivePatterns(data: {
 
 Session Data: ${JSON.stringify(data.sessionData)}
 User History: ${JSON.stringify(data.userHistory)}
+Voice Patterns: ${JSON.stringify(data.voicePatterns || {})}
 
 Provide analysis in this JSON format:
 {
@@ -134,8 +155,20 @@ Provide recommendations in JSON format:
   }
 }
 
-function generateMockAIResponse(message: string, history: ChatMessage[]): string {
+// Enhanced voice-aware response generation
+function generateMockAIResponse(message: string, history: ChatMessage[], voiceData?: VoiceInteractionData): string {
   const lowerMessage = message.toLowerCase()
+
+  // Voice-specific responses
+  if (voiceData?.emotion) {
+    const emotion = voiceData.emotion.toLowerCase()
+    if (emotion.includes("stress") || emotion.includes("uncertain")) {
+      return "I can hear some uncertainty in your voice. That's completely normal when working on cognitive training! Let's take this step by step. What specific situation is causing you to feel unsure?"
+    }
+    if (emotion.includes("confident") || emotion.includes("excited")) {
+      return "I love the enthusiasm I'm hearing! That positive energy will really help with your cognitive training. What would you like to focus on today?"
+    }
+  }
 
   // Contextual responses based on message content
   if (lowerMessage.includes("bias") || lowerMessage.includes("biased")) {
@@ -294,4 +327,42 @@ export async function generateTrainingRecommendations(userProfile: any) {
   ]
 
   return recommendations.slice(0, 2) // Return top 2 recommendations
+}
+
+// New function for avatar integration
+export async function generateAvatarResponse(message: string, emotion?: string) {
+  const response = await chatWithAI(message, [], { emotion })
+
+  // Determine avatar animation based on response content
+  let animation = "Idle"
+  let facialExpression = "default"
+
+  if (
+    response.response.includes("!") ||
+    response.response.includes("Great") ||
+    response.response.includes("Excellent")
+  ) {
+    animation = "happy_idle"
+    facialExpression = "happy"
+  } else if (
+    response.response.includes("?") ||
+    response.response.includes("consider") ||
+    response.response.includes("think")
+  ) {
+    animation = "thoughtful_head_shake"
+    facialExpression = "thinking"
+  } else if (
+    response.response.includes("bias") ||
+    response.response.includes("careful") ||
+    response.response.includes("watch")
+  ) {
+    animation = "talking"
+    facialExpression = "concerned"
+  }
+
+  return {
+    ...response,
+    animation,
+    facialExpression,
+  }
 }

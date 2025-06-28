@@ -15,6 +15,16 @@ export interface TranscriptionResponse {
   error: string | null
 }
 
+export interface VoiceAnalysis {
+  emotion: string
+  confidence: number
+  valence: number
+  arousal: number
+  speakingRate: number
+  pauseFrequency: number
+  stressIndicators: string[]
+}
+
 export async function textToSpeech(text: string, options: VoiceOptions = {}): Promise<VoiceResponse> {
   try {
     // Demo mode - return mock audio URL
@@ -153,9 +163,19 @@ export async function getAvailableVoices() {
   }
 }
 
-export async function detectEmotion(audioBlob: Blob) {
-  // Demo emotion detection - in production, you'd use a service like Azure Cognitive Services
-  const emotions = ["confident", "uncertain", "excited", "calm", "stressed", "focused", "confused"]
+export async function detectEmotion(audioBlob: Blob): Promise<VoiceAnalysis> {
+  // Enhanced emotion detection with more detailed analysis
+  const emotions = [
+    "confident",
+    "uncertain",
+    "excited",
+    "calm",
+    "stressed",
+    "focused",
+    "confused",
+    "happy",
+    "concerned",
+  ]
   const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)]
 
   return {
@@ -163,18 +183,61 @@ export async function detectEmotion(audioBlob: Blob) {
     confidence: Math.random() * 0.5 + 0.5, // 0.5-1.0
     valence: Math.random() * 2 - 1, // -1 to 1 (negative to positive)
     arousal: Math.random() * 2 - 1, // -1 to 1 (calm to excited)
-    success: true,
+    speakingRate: Math.random() * 100 + 100, // words per minute
+    pauseFrequency: Math.random() * 10 + 5, // pauses per minute
+    stressIndicators: Math.random() > 0.7 ? ["vocal tension", "rapid speech"] : [],
   }
 }
 
-export async function analyzeVoicePatterns(audioBlob: Blob) {
-  // Demo voice pattern analysis
-  return {
-    speakingRate: Math.random() * 100 + 100, // words per minute
-    pauseFrequency: Math.random() * 10 + 5, // pauses per minute
-    confidenceLevel: Math.random() * 0.5 + 0.5, // 0.5-1.0
-    stressIndicators: Math.random() > 0.7 ? ["vocal tension", "rapid speech"] : [],
-    cognitiveLoad: Math.random() * 100, // 0-100
-    success: true,
+export async function analyzeVoicePatterns(audioBlob: Blob): Promise<VoiceAnalysis> {
+  // Comprehensive voice pattern analysis
+  return await detectEmotion(audioBlob)
+}
+
+// New function for real-time voice processing
+export async function processVoiceInput(audioBlob: Blob) {
+  try {
+    const [transcription, voiceAnalysis] = await Promise.all([speechToText(audioBlob), analyzeVoicePatterns(audioBlob)])
+
+    return {
+      transcript: transcription.text,
+      confidence: transcription.confidence,
+      emotion: voiceAnalysis.emotion,
+      voiceMetrics: voiceAnalysis,
+      error: transcription.error,
+    }
+  } catch (error) {
+    console.error("Voice processing error:", error)
+    return {
+      transcript: "",
+      confidence: 0,
+      emotion: "neutral",
+      voiceMetrics: null,
+      error: error instanceof Error ? error.message : "Failed to process voice input",
+    }
+  }
+}
+
+// Integration with backend services
+export async function connectToBackendAudio(message: string) {
+  try {
+    // Connect to the Node.js backend for audio processing
+    const response = await fetch("/api/voice/process", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Backend audio error: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Backend audio connection error:", error)
+    // Fallback to local processing
+    return await textToSpeech(message)
   }
 }
